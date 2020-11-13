@@ -4,13 +4,7 @@
 `define TCK_BITS 10
 `define CNT_COLOR 24
 `define CNT_RESET 20 // 50 ns (2.5 * 20)
-`define CNT_BITS 5
-
-/* NOTE: USING THE PIXEL DRIVER
- * When a string of pixel values are queued to write (a "command"),
- * care should be taken to choose whether to reset before or after
- * color values. So long as you are consistent, either is fine.
- */ 
+`define CNT_BITS 5 
  
 module pixel_driver (
   input         clk,
@@ -25,14 +19,14 @@ module pixel_driver (
   reg [22:0] stored;
   
   // counters
-  reg [CNT_BITS-1:0] count = 0;
-  reg [TCK_BITS-1:0] tick = 0;
-  reg [TCK_BITS-1:0] tick_on = 0;
+  reg [`CNT_BITS-1:0] count = 0;
+  reg [`TCK_BITS-1:0] tick = 0;
+  reg [`TCK_BITS-1:0] tick_on = 0;
   
   // State machine init
   localparam STATE_WAIT=0, STATE_RESET=1, STATE_COLOR=2;
   reg  [1:0] state=STATE_WAIT;
-  wire [1:0] nextState;
+  reg  [1:0] nextState;
   
   // output signals determined by zero states
   assign ready = (state == STATE_WAIT);
@@ -80,19 +74,20 @@ module pixel_driver (
       case (nextState)
       STATE_COLOR: begin
         stored <= color[22:0]; // MSB -> LSB, R->B->G
-        count <= CNT_COLOR-1;
-        tick <= TCK_CYCLE-1;
-        tick_on <= (color[23] ? TCK_ON_HI : TCK_ZR_HI); 
+        count <= `CNT_COLOR-1;
+        tick <= `TCK_CYCLE-1;
+        tick_on <= (color[23] ? `TCK_ON_HI : `TCK_ZR_HI); 
       end
       STATE_RESET: begin
-        count <= CNT_RESET-1;
-        tick <= TCK_CYCLE-1;
+        count <= `CNT_RESET-1;
+        tick <= `TCK_CYCLE-1;
         tick_on <= 0;
       end
-      default:
+      default: begin
         count <= 0;
         tick <= 0;
         tick_on <= 0;
+      end
       endcase
     end
     STATE_RESET: begin
@@ -100,7 +95,7 @@ module pixel_driver (
       STATE_RESET: begin
         if (tick == 0) begin
           count <= count-1;
-          tick <= TCK_CYCLE-1;
+          tick <= `TCK_CYCLE-1;
         end else begin
           tick <= tick-1;
         end
@@ -118,8 +113,8 @@ module pixel_driver (
         if (tick == 0) begin
           stored <= {stored[21:0], 1'b0};
           count <= count-1;
-          tick <= TCK_CYCLE-1;
-          tick_on <= (stored[22] ? TCK_ON_HI : TCK_ZR_HI);
+          tick <= `TCK_CYCLE-1;
+          tick_on <= (stored[22] ? `TCK_ON_HI : `TCK_ZR_HI);
         end else begin
           tick <= tick-1;
           if (tick_on > 0)
