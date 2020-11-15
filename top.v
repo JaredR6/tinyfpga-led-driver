@@ -1,7 +1,4 @@
 `default_nettype none
-//
-// WS2811 Driver
-//
 
 module top (
   input CLK, // 16 MHz
@@ -12,27 +9,27 @@ module top (
 
   // LED Sample code
 
-  reg [25:0] clk_1hz_divider = 26'b0;
-  reg        clk_1hz = 1'b0;
+  reg [25:0] clk_4hz_divider = 26'b0;
+  reg  [1:0] clk_4hz = 2'b0;
   
   always @(posedge CLK) begin
-    if (clk_1hz_divider < 26'd47_999_999) // 
-      clk_1hz_divider <= clk_1hz_divider + 1;
+    if (clk_4hz_divider < 26'd7_999_999) // 
+      clk_4hz_divider <= clk_4hz_divider + 1;
     else begin
-      clk_1hz_divider <= 0;
-      clk_1hz <= ~clk_1hz;
+      clk_4hz_divider <= 0;
+      clk_4hz <= clk_4hz + 1;
     end
   end
   
-  assign LED = clk_1hz;
+  assign LED = (clk_4hz[1] == 1'b1);
   assign USBPU = 1'b0;
 
   // Pixel driver
   
-  reg reset=0, valid=0;
-  reg [23:0] color;
+  wire reset, valid, active;
+  wire [23:0] color;
   wire ready;
-  reg [1:0] counter=0;
+  reg [7:0] counter = 0;
   reg [71:0] colors = 72'hff0000_00ff00_0000ff;
   reg [8:0] px_count = 0;
   
@@ -45,21 +42,24 @@ module top (
     .clk_out(PIN_1)
   );
   
-  always @(*) begin
-    valid = (reset || (counter < 3 && ready));
-    reset = clk_1hz;
-    color = (counter < 150 ? 24'hffffff : colors[71:48]);
+  localparam pxcount = 3;
   
-  end
+  assign active = (counter < pxcount);
+  assign reset = (counter == pxcount);
+  assign valid = ((active || reset) && ready);
+  assign color = (active ? colors[71:48] : 24'hxxxxxx );
   
   always @(posedge CLK) begin
     if (ready) begin
-      if (~clk_1hz) begin
-        counter <= counter + 1;
-        if (counter < 150)
-          colors <= {colors[47:0], colors[71:48]};
-      end else
+      if (LED) begin
         counter <= 0;
+      end else begin
+        if (active || reset) begin
+          counter <= counter + 1;
+          if (active)
+            colors <= {colors[47:0], colors[71:48]};
+        end
+      end
     end
   end
   

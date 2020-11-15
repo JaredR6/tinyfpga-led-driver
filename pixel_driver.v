@@ -1,10 +1,16 @@
-`define TCK_ZR_HI 8  // .5 ns
-`define TCK_ON_HI 20 // 1.25 ns (within 1.2 ns +- 150us)
-`define TCK_CYCLE 40 // 2.5 ns
+`default_nettype none
+
+`define TCK_ZR_HI 6  // .375 us
+`define TCK_ON_HI 13 // .8125 us
+`define TCK_CYCLE 20 // 1.25 us
 `define TCK_BITS 10
 `define CNT_COLOR 24
-`define CNT_RESET 20 // 50 ns (2.5 * 20)
+`define CNT_RESET 40 // 50 us (1.25 * 40)
 `define CNT_BITS 5 
+
+//
+// WS2812B Driver
+//
  
 module pixel_driver (
   input         clk,
