@@ -1,33 +1,39 @@
 `default_nettype none
 
-`define TCK_ZR_HI 6  // .375 us
-`define TCK_ON_HI 13 // .8125 us
-`define TCK_CYCLE 20 // 1.25 us
-`define TCK_BITS 10
-`define CNT_COLOR 24
-`define CNT_RESET 40 // 50 us (1.25 * 40)
-`define CNT_BITS 5 
-
 //
 // WS2812B Driver
 //
  
-module pixel_driver (
-  input         clk,
-  input  [23:0] color,
-  input         reset,
-  input         valid,
-  output        ready,
-  output        clk_out
+module pixel_driver 
+  #(parameter CLK_HZ=16000000,
+    parameter HZ=80,
+    parameter LED=256,
+    parameter TCK_ZR_HI=6,
+    parameter TCK_ON_HI=11,
+    parameter TCK_COLOR=18,
+    parameter CNT_COLOR=24,
+    parameter RESET_VERIFY=800) (
+  input        clk,
+  input  [7:0] red, blue, green,
+  input        reset,
+  input        valid,
+  output       ready,
+  output       clk_out
 );
+
+  localparam TCK_RESET = (CLK_HZ / HZ) - (LED * TCK_COLOR * CNT_COLOR);
+  localparam TIMING_FAILURE = (RESET_VERIFY <= TCK_RESET);
+  
+  localparam CNT_BITS = $clog2(CNT_COLOR);
+  localparam TCK_BITS = $clog2(TCK_RESET);
 
   // pixel buffer storage
   reg [22:0] stored;
   
   // counters
-  reg [`CNT_BITS-1:0] count = 0;
-  reg [`TCK_BITS-1:0] tick = 0;
-  reg [`TCK_BITS-1:0] tick_on = 0;
+  reg [CNT_BITS-1:0] count = 0;
+  reg [TCK_BITS-1:0] tick = 0;
+  reg [TCK_BITS-1:0] tick_on = 0;
   
   // State machine init
   localparam STATE_WAIT=0, STATE_RESET=1, STATE_COLOR=2;
@@ -38,13 +44,6 @@ module pixel_driver (
   assign ready = (state == STATE_WAIT);
   assign clk_out = ~(tick_on == 0);
   
-  /*
-   * I favor back-to-back signal chains, so I added this signal
-   * to return to STATE_WAIT right as all counters become zero.
-   * Coupled with the 'ready' assign, this achieves the task.
-   * I hope this solution isn't looked down upon since it only
-   * saves a single clock cycle.
-   */
   wire next_ready;
   assign next_ready = (count == 0 && tick == 1);
   
@@ -79,14 +78,14 @@ module pixel_driver (
     STATE_WAIT: begin
       case (nextState)
       STATE_COLOR: begin
-        stored <= color[22:0]; // MSB -> LSB, R->B->G
-        count <= `CNT_COLOR-1;
-        tick <= `TCK_CYCLE-1;
-        tick_on <= (color[23] ? `TCK_ON_HI : `TCK_ZR_HI); 
+        stored <= {green[6:0], red, blue}; // MSB -> LSB, G->R->B
+        count <= CNT_COLOR-1;
+        tick <= TCK_COLOR-1;
+        tick_on <= (green[7] ? TCK_ON_HI : TCK_ZR_HI); 
       end
       STATE_RESET: begin
-        count <= `CNT_RESET-1;
-        tick <= `TCK_CYCLE-1;
+        count <= 0;
+        tick <= TCK_RESET-1;
         tick_on <= 0;
       end
       default: begin
@@ -101,7 +100,7 @@ module pixel_driver (
       STATE_RESET: begin
         if (tick == 0) begin
           count <= count-1;
-          tick <= `TCK_CYCLE-1;
+          tick <= TCK_COLOR-1;
         end else begin
           tick <= tick-1;
         end
@@ -119,8 +118,8 @@ module pixel_driver (
         if (tick == 0) begin
           stored <= {stored[21:0], 1'b0};
           count <= count-1;
-          tick <= `TCK_CYCLE-1;
-          tick_on <= (stored[22] ? `TCK_ON_HI : `TCK_ZR_HI);
+          tick <= TCK_COLOR-1;
+          tick_on <= (stored[22] ? TCK_ON_HI : TCK_ZR_HI);
         end else begin
           tick <= tick-1;
           if (tick_on > 0)

@@ -1,64 +1,69 @@
 `default_nettype none
 
 module top (
-  input CLK, // 16 MHz
-  output LED,
+  input CLK,
   output PIN_1,
   output USBPU
 );
 
-  // LED Sample code
+  localparam PX_COUNT = 256;
 
-  reg [25:0] clk_4hz_divider = 26'b0;
-  reg  [1:0] clk_4hz = 2'b0;
-  
-  always @(posedge CLK) begin
-    if (clk_4hz_divider < 26'd7_999_999) // 
-      clk_4hz_divider <= clk_4hz_divider + 1;
-    else begin
-      clk_4hz_divider <= 0;
-      clk_4hz <= clk_4hz + 1;
-    end
-  end
-  
-  assign LED = (clk_4hz[1] == 1'b1);
   assign USBPU = 1'b0;
-
-  // Pixel driver
   
-  wire reset, valid, active;
-  wire [23:0] color;
-  wire ready;
-  reg [7:0] counter = 0;
-  reg [71:0] colors = 72'hff0000_00ff00_0000ff;
-  reg [8:0] px_count = 0;
+  reg [7:0] px_red = 0, px_blue = 0, px_green = 0;
+  wire reset;
+  wire px_valid, px_ready;
   
-  pixel_driver px(
+  wire bg_valid, bg_ready;
+  wire [7:0] bg_red, bg_blue, bg_green;
+  
+  reg [9:0] index = 0;
+  reg [9:0] index_mod = 0;
+  wire [9:0] index_display;
+  
+  
+  pixel_driver
+    #(.CLK_HZ(16000000),
+      .HZ(80),
+      .LED(256))
+    px (
     .clk(CLK),
-    .color(color),
+    .red(px_red),
+    .blue(px_blue),
+    .green(px_green),
     .reset(reset),
-    .valid(valid),
-    .ready(ready),
+    .valid(px_valid),
+    .ready(px_ready),
     .clk_out(PIN_1)
   );
   
-  localparam pxcount = 3;
+  panel_bg bg(
+    .clk(CLK),
+    .valid(bg_valid),
+    .index(index_display),
+    .ready(bg_ready),
+    .red(bg_red),
+    .blue(bg_blue),
+    .green(bg_green),
+    .alpha(),
+    .blend()
+  );
   
-  assign active = (counter < pxcount);
-  assign reset = (counter == pxcount);
-  assign valid = ((active || reset) && ready);
-  assign color = (active ? colors[71:48] : 24'hxxxxxx );
+  assign bg_valid = px_ready;
+  assign px_valid = px_ready;
+  assign reset = (index == PX_COUNT);
+  assign index_display = index + index_mod;
   
   always @(posedge CLK) begin
-    if (ready) begin
-      if (LED) begin
-        counter <= 0;
+    if (px_ready) begin
+      index <= index + 1;
+      if (reset) begin
+        index <= 0;
+        index_mod <= index_mod - 1;
       end else begin
-        if (active || reset) begin
-          counter <= counter + 1;
-          if (active)
-            colors <= {colors[47:0], colors[71:48]};
-        end
+        px_red <= bg_red;
+        px_blue <= bg_blue;
+        px_green <= bg_green;
       end
     end
   end
