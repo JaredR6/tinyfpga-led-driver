@@ -2,18 +2,27 @@
 
 module alpha_blend (
   input  clk,
-  input  [23:0] colorTop, colorBot,
-  input  [7:0]  alphaTop,
-  input  valid,
-  output ready,
-  output [23:0] colorOut);
+  input     [23:0] colorTop, colorBot,
+  input     [7:0]  alphaTop,
+  input            valid,
+  input            ack,
+  output reg       validOut,
+  output           ready,
+  output reg [23:0] colorOut
+);
   
-  localparam STATE_WAIT = 2'b0;
-  localparam STATE_MULT = 2'b1;
-  localparam STATE_ADD = 2'b2;
-  reg [1:0] state, nextState;
+  localparam STATE_WAIT = 2'b00;
+  localparam STATE_MULT = 2'b01;
+  localparam STATE_ADD = 2'b10;
+  reg [1:0] state=STATE_WAIT, nextState;
   
-  assign ready = (nextState == STATE_WAIT);
+  
+  wire [15:0] redSum, greenSum, blueSum;
+  
+  assign ready = (state == STATE_WAIT);
+  assign redSum = (redTop + redBot + 15'h00FF);
+  assign greenSum = (greenTop + greenBot + 15'h00FF);
+  assign blueSum = (blueTop + blueBot + 15'h00FF);
   
   always @(*) begin
     case (state)
@@ -22,7 +31,7 @@ module alpha_blend (
     end
     STATE_MULT: nextState = STATE_ADD;
     STATE_ADD: nextState = STATE_WAIT;
-    default: nextState = state_WAIT;
+    default: nextState = STATE_WAIT;
     endcase
   end
   
@@ -34,7 +43,8 @@ module alpha_blend (
   
   always @(posedge clk) begin
     state <= nextState;
-    ready <= 0;
+    if (ack)
+      validOut <= 0;
     case (state)
     STATE_WAIT: begin
       case (nextState)
@@ -54,15 +64,15 @@ module alpha_blend (
       redTop <= redTop * alpha;
       greenTop <= greenTop * alpha;
       blueTop <= blueTop * alpha;
-      redBot <= redBot * (255 - alpha);
-      greenBot <= greenBot * (255 - alpha);
-      blueBot <= blueBot * (255 - alpha);
+      redBot <= redBot * (16'hFF - {8'h00, alpha});
+      greenBot <= greenBot * (16'hFF - {8'h00, alpha});
+      blueBot <= blueBot * (16'hFF - {8'h00, alpha});
     end
     STATE_ADD: begin
-      colorOut[23:16] <= (redTop + redBot + 15'h00FF)[15:8];
-      colorOut[15:8] <= (greenTop + greenBot + 15'h00FF)[15:8];
-      colorOut[7:0] <= (blueTop + blueBot + 15'h00FF)[15:8];
-      ready <= 1;
+      colorOut[23:16] <= redSum[15:8];
+      colorOut[15:8] <= greenSum[15:8];
+      colorOut[7:0] <= blueSum[15:8];
+      validOut <= 1;
     end
     default: begin end
     endcase

@@ -14,7 +14,7 @@ module pixel_driver
     parameter CNT_COLOR=24,
     parameter RESET_VERIFY=800) (
   input        clk,
-  input  [7:0] red, blue, green,
+  input  [7:0] red, green, blue,
   input        reset,
   input        valid,
   output       ready,
@@ -25,7 +25,7 @@ module pixel_driver
   localparam TIMING_FAILURE = (RESET_VERIFY <= TCK_RESET);
   
   localparam CNT_BITS = $clog2(CNT_COLOR);
-  localparam TCK_BITS = $clog2(TCK_RESET);
+  localparam TCK_BITS = 32;
 
   // pixel buffer storage
   reg [22:0] stored;
@@ -37,15 +37,10 @@ module pixel_driver
   
   // State machine init
   localparam STATE_WAIT=0, STATE_RESET=1, STATE_COLOR=2;
-  reg  [1:0] state=STATE_WAIT;
-  reg  [1:0] nextState;
+  reg  [1:0] state=STATE_WAIT, nextState;
   
-  // output signals determined by zero states
   assign ready = (state == STATE_WAIT);
   assign clk_out = ~(tick_on == 0);
-  
-  wire next_ready;
-  assign next_ready = (count == 0 && tick == 1);
   
   // STATE_WAIT: No command received.
   // STATE_COLOR: Consume stored buffer and translate to PWM output.
@@ -62,7 +57,7 @@ module pixel_driver
           nextState = STATE_WAIT;
       end
       STATE_RESET,STATE_COLOR: begin
-        if (next_ready)
+        if (count == 0 && tick == 1)
           nextState = STATE_WAIT;
         else
           nextState = state;
