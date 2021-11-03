@@ -1,3 +1,5 @@
 hardware.*
 *.dblite
 *.history
+top_tb.out
+top_tb.vcd
